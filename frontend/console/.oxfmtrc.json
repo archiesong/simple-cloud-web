@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "semi": false,
+  "singleQuote": true,
+  "printWidth": 100,
+  "tabWidth": 2,
+  "useTabs": false,
+  "trailingComma": "all",
+  "insertFinalNewline": false,
+  "sortImports": {
+    "groups": ["type-import", ["value-builtin", "value-external"], "value-internal", ["value-parent", "value-sibling", "value-index"], "unknown"]
+  }
+}

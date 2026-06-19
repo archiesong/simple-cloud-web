@@ -1,0 +1,35 @@
+#user-layout {
+  &.user-layout-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: auto;
+    background-image: url('@/assets/bg.png');
+    background-position: 100% 100%;
+    background-repeat: no-repeat;
+    background-size: cover;
+    z-index: 1;
+    .user-layout-lang {
+      position: fixed;
+      z-index: 2;
+      width: 42px;
+      height: 42px;
+      line-height: 42px;
+      right: 16px;
+      border-radius: 6px;
+      .ant-dropdown-trigger {
+        display: inline-flex;
+        padding: 12px;
+        font-size: 18px;
+        vertical-align: middle;
+        cursor: pointer;
+        align-items: center;
+        justify-content: center;
+      }
+    }
+
+    .user-layout-content {
+      flex: 1 1 0%;
+    }
+  }
+}

@@ -1,0 +1,23 @@
+.DS_Store
+*.log
+logs/
+
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.eslintcache
+
+# Local environment and secrets
+.env.local
+.env.*.local
+backend/src/config/keys/*.pem
+backend/src/config/keys/*.key
+backend/src/config/keys/*.crt
+
+# Runtime output
+backend/logs/
+backend/dist/
+frontend/console/dist/
+frontend/console/cypress/videos/
+frontend/console/cypress/screenshots/

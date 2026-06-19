@@ -1,0 +1,21 @@
+{
+  "extends": "@vue/tsconfig/tsconfig.dom.json",
+  "include": ["src/**/*", "src/**/*.vue", "src/**/*.tsx", "types/**/*.d.ts", "types/**/*.ts", "build/**/*.ts"],
+  "exclude": ["src/**/__tests__/*", "node_modules"],
+  "compilerOptions": {
+    "composite": true,
+    // Extra safety for array and object lookups, but may have false positives.
+    "noUncheckedIndexedAccess": true,
+    "types": ["vite/client", "antdv-next/global"],
+    // Path mapping for cleaner imports.
+    "paths": {
+      "@/*": ["./src/*"],
+      "vue-types": ["./node_modules/vue-types"],
+      "#/*": ["./types/*"]
+    },
+
+    // `vue-tsc --build` produces a .tsbuildinfo file for incremental type-checking.
+    // Specified here to keep it out of the root directory.
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo"
+  }
+}
