@@ -1,5 +1,7 @@
 import type { CustomSlotsType, VueNode } from '@v-c/util/dist/type'
+import type { StyleValue } from 'vue'
 
+import AntdIcon from '@antdv-next/icons'
 import { Icon as IconifyIcon } from '@iconify/vue'
 import { h } from 'vue'
 
@@ -101,25 +103,38 @@ const IconView = defineComponent<
       alignItems: 'center',
       justifyContent: 'center',
     }))
+    const iconAttrs = computed(() => ({
+      class: attrs.class,
+      style: [baseStyle.value, attrs.style as StyleValue],
+    }))
+    const iconifyComponent = (svgProps: Record<string, unknown>) =>
+      h(IconifyIcon, { ...svgProps, icon: iconifyIcon.value })
+
     return () => {
       return (
         <>
           {resolvedKind.value === 'antd' ? (
             <>
               {antdComponent.value
-                ? h(antdComponent.value, { style: [baseStyle.value, attrs.style] })
+                ? h(antdComponent.value, iconAttrs.value)
                 : null}
             </>
           ) : resolvedKind.value === 'svg' ? (
             h(
-              'svg',
-              { style: [baseStyle.value, attrs.style] },
-              h('use', { href: `#${svgId.value}` }),
+              AntdIcon,
+              {
+                ...iconAttrs.value,
+                viewBox: '0 0 1024 1024',
+              },
+              () => h('use', { href: `#${svgId.value}` }),
             )
           ) : canRenderIconify.value ? (
-            <IconifyIcon icon={iconifyIcon.value} style={[baseStyle.value, attrs.style]} />
+            h(AntdIcon, {
+              ...iconAttrs.value,
+              component: iconifyComponent,
+            })
           ) : (
-            <span style={[baseStyle.value, attrs.style]} />
+            <span {...iconAttrs.value} />
           )}
         </>
       )

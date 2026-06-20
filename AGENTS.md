@@ -50,7 +50,7 @@
 
 ## 提交与 Pull Request 规范
 
-当前检出目录没有 Git 历史，无法推断既有提交规范。建议使用 Conventional Commits，例如 `feat: add role permission editor` 或 `fix: handle expired token`。PR 应包含简要说明、影响范围、测试结果、关联 issue；涉及 UI 的变更需附截图。
+当前仓库已有 Git 历史。提交信息统一建议使用 Conventional Commits，例如 `feat: add role permission editor` 或 `fix: handle expired token`。PR 应包含简要说明、影响范围、测试结果、关联 issue；涉及 UI 的变更需附截图。
 
 ## 安全与配置提示
 

@@ -28,9 +28,12 @@ router.beforeEach(async (to, from) => {
     }
 
     const hasRoles = userStore.roles && userStore.roles.length > 0
-    if (!hasRoles) {
+    const hasDynamicRoutes = permissionStore.addRoutes && permissionStore.addRoutes.length > 0
+    if (!hasRoles || !hasDynamicRoutes) {
       try {
-        await userStore.getInfo()
+        if (!hasRoles) {
+          await userStore.getInfo()
+        }
         const accessRoutes = await permissionStore.generateRoutes()
         accessRoutes.forEach((route) => {
           router.addRoute('index', route as unknown as RouteRecordRaw)

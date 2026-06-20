@@ -1,0 +1,79 @@
+name: simple-cloud-web
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: simple-cloud-web-backend:latest
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      COOKIE_KEYS: simple-cloud-web-cookie-key-change-me
+      JWT_REFRESH_SECRET: simple-cloud-web-jwt-refresh-secret-change-me-change-me
+      AES_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      AES_IV: MDEyMzQ1Njc4OWFiY2RlZg==
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USERNAME: simple_cloud
+      DB_PASSWORD: simple_cloud_password
+      DB_DATABASE: simple-admin
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 3
+      REDIS_CAPTCHA_HOST: redis
+      REDIS_CAPTCHA_PORT: 6379
+      REDIS_CAPTCHA_DB: 4
+      CORS_ORIGIN: "*"
+    ports:
+      - "7001:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_ROOT_PASSWORD: simple_cloud_root_password
+      MYSQL_DATABASE: simple-admin
+      MYSQL_USER: simple_cloud
+      MYSQL_PASSWORD: simple_cloud_password
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --explicit_defaults_for_timestamp=true
+      - --lower_case_table_names=1
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/simple-cloud-baseline.sql:/docker-entrypoint-initdb.d/01-simple-cloud-baseline.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -usimple_cloud -psimple_cloud_password --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  redis:
+    image: redis:7.2.8
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  mysql_data:
+  redis_data:

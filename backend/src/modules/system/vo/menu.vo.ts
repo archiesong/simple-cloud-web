@@ -100,7 +100,7 @@ export class MenuVo {
     this.id = id || '0';
     this.name = name || '';
     this.title = title || '';
-    this.sort = sort || 999;
+    this.sort = sort ?? 999;
     this.component = component || '';
     this.path = path || '';
     this.redirect = redirect || '';

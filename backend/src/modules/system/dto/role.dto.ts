@@ -40,3 +40,19 @@ export class RoleIdDto {
   @Rule(RuleType.string().required())
   id: string;
 }
+
+export class RoleAssignMenusDto {
+  @ApiProperty({
+    description: '角色ID',
+  })
+  @Rule(RuleType.string().required())
+  id: string;
+
+  @ApiProperty({
+    description: '角色权限菜单ID集合',
+    type: String,
+    isArray: true,
+  })
+  @Rule(RuleType.array().items(RuleType.string().required()).required())
+  menuIds: string[];
+}

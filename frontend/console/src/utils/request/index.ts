@@ -142,8 +142,15 @@ const transform: AxiosTransform = {
       urlPrefix: optionsUrlPrefix,
     } = options
     const isUrlStr = isUrl(config.url as string)
-    if (!isUrlStr && joinPrefix) {
-      config.url = `${optionsUrlPrefix}${config.url}`
+    if (!isUrlStr && joinPrefix && optionsUrlPrefix) {
+      const normalizedPrefix = optionsUrlPrefix.endsWith('/')
+        ? optionsUrlPrefix.slice(0, -1)
+        : optionsUrlPrefix
+      const url = config.url || ''
+      const hasPrefix = url === normalizedPrefix || url.startsWith(`${normalizedPrefix}/`)
+      if (!hasPrefix) {
+        config.url = `${normalizedPrefix}${url.startsWith('/') ? '' : '/'}${url}`
+      }
     }
     if (!isUrlStr && apiUrl && isString(apiUrl)) {
       config.url = `${apiUrl}${config.url}`
@@ -206,7 +213,8 @@ const transform: AxiosTransform = {
       // 获取请求参数
       const { _t, ...originalData } = getRequestParams(config)
       const encryptedData = cryptoUtils.aesEncrypt(originalData, aesKey, iv)
-      const path = config.url?.replace(new RegExp(`^${config.requestOptions.urlPrefix}`), '')
+      const requestUrl = config.url || ''
+      const path = isUrl(requestUrl) ? new URL(requestUrl).pathname : requestUrl.split('?')[0]
 
       // 构建签名负载（使用加密后的数据和请求路径）
       const method = config.method?.toUpperCase() || 'GET'

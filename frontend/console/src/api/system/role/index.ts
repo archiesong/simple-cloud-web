@@ -9,6 +9,7 @@ enum Api {
   CREATE = '/api/roles/create',
   UPDATE = '/api/roles/update',
   DELETE = '/api/roles/delete',
+  MENUS = '/api/roles/menus',
 }
 export function getRoleList<T>(params: T) {
   return service.request<{
@@ -62,5 +63,18 @@ export function deleteRole<T>(data: T) {
     url: Api.DELETE,
     method: RequestEnum.POST,
     data,
+  })
+}
+
+export function assignRoleMenus(data: { id: string | number; menuIds: Array<string | number> }) {
+  return service.request<{
+    success: boolean
+  }>({
+    url: Api.MENUS,
+    method: RequestEnum.PUT,
+    data: {
+      id: data.id.toString(),
+      menuIds: data.menuIds.map((id) => id.toString()),
+    },
   })
 }

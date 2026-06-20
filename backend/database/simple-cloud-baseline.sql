@@ -1,6 +1,9 @@
 -- simple-cloud-web RBAC baseline schema and seed data.
 -- Target: MySQL 8.x, TypeORM synchronize=false.
 
+SET NAMES utf8mb4;
+SET CHARACTER SET utf8mb4;
+
 CREATE DATABASE IF NOT EXISTS `simple-admin` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE `simple-admin`;
 
@@ -144,7 +147,7 @@ ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `enabled` = VALUES(`enabled`);
 
 INSERT INTO `sys_role` (`id`, `create_by`, `update_by`, `name`, `dataScope`, `enabled`, `code`, `level`, `description`)
 VALUES (1, 'system', 'system', '超级管理员', 0, 1, 'admin', 1, '系统内置超级管理员')
-ON DUPLICATE KEY UPDATE `code` = VALUES(`code`), `dataScope` = VALUES(`dataScope`), `enabled` = VALUES(`enabled`);
+ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `code` = VALUES(`code`), `dataScope` = VALUES(`dataScope`), `enabled` = VALUES(`enabled`), `level` = VALUES(`level`), `description` = VALUES(`description`);
 
 INSERT INTO `sys_user` (`id`, `create_by`, `update_by`, `username`, `password`, `nick`, `email`, `phone`, `gender`, `avatar`, `dept_id`, `enabled`, `is_delete`)
 VALUES (1, 'system', 'system', 'admin', '$argon2id$v=19$m=4096,t=3,p=1$ctlh99ahasib0YkLr3mbIA$BU3d8eQEIr1gjqf/Mi6MbBtUZhHQPKz1lqvnWLSp5wA', '管理员', 'admin@example.com', '13800000000', 1, '', 1, 1, 0)
@@ -152,11 +155,12 @@ ON DUPLICATE KEY UPDATE `nick` = VALUES(`nick`), `password` = VALUES(`password`)
 
 INSERT INTO `sys_menu` (`id`, `create_by`, `update_by`, `title`, `name`, `sort`, `component`, `path`, `redirect`, `type`, `permission`, `icon`, `cache`, `hidden`, `pid`, `enabled`, `breadcrumb`, `hideChildrenInMenu`, `affix`)
 VALUES
-(1, 'system', 'system', '系统管理', 'System', 10, 'RouteView', '/system', NULL, 0, 'system', 'ri:settings-3-line', 1, 0, 0, 1, 1, 0, 0),
+(10, 'system', 'system', '仪表盘', 'Dashboard', 0, 'Dashboard', 'dashboard', NULL, 1, 'dashboard', 'ri:dashboard-line', 1, 0, 0, 1, 1, 0, 1),
+(1, 'system', 'system', '系统管理', 'System', 10, 'PageView', '/system', '/system/user', 0, 'system', 'ri:settings-3-line', 1, 0, 0, 1, 1, 0, 0),
 (2, 'system', 'system', '用户管理', 'User', 20, 'User', 'user', NULL, 1, 'system:user:list', 'ri:user-3-line', 1, 0, 1, 1, 1, 0, 0),
 (3, 'system', 'system', '角色管理', 'Role', 30, 'Role', 'role', NULL, 1, 'system:role:list', 'ri:shield-user-line', 1, 0, 1, 1, 1, 0, 0),
 (4, 'system', 'system', '菜单管理', 'Menu', 40, 'Menu', 'menu', NULL, 1, 'system:menu:list', 'ri:menu-2-line', 1, 0, 1, 1, 1, 0, 0),
-(5, 'system', 'system', '角色权限配置', 'RoleAssign', 50, 'RoleAssign', 'role/:id/assign', NULL, 1, 'system:role:assign', 'ri:shield-keyhole-line', 0, 1, 1, 1, 1, 0, 0),
+(5, 'system', 'system', '角色权限配置', NULL, 204, NULL, NULL, NULL, 2, 'system:role:assign', NULL, 0, 1, 3, 1, 1, 0, 0),
 (101, 'system', 'system', '新增用户', NULL, 101, NULL, NULL, NULL, 2, 'system:user:create', NULL, 0, 1, 2, 1, 1, 0, 0),
 (102, 'system', 'system', '修改用户', NULL, 102, NULL, NULL, NULL, 2, 'system:user:update', NULL, 0, 1, 2, 1, 1, 0, 0),
 (103, 'system', 'system', '删除用户', NULL, 103, NULL, NULL, NULL, 2, 'system:user:delete', NULL, 0, 1, 2, 1, 1, 0, 0),
@@ -166,7 +170,7 @@ VALUES
 (301, 'system', 'system', '新增菜单', NULL, 301, NULL, NULL, NULL, 2, 'system:menu:create', NULL, 0, 1, 4, 1, 1, 0, 0),
 (302, 'system', 'system', '修改菜单', NULL, 302, NULL, NULL, NULL, 2, 'system:menu:update', NULL, 0, 1, 4, 1, 1, 0, 0),
 (303, 'system', 'system', '删除菜单', NULL, 303, NULL, NULL, NULL, 2, 'system:menu:delete', NULL, 0, 1, 4, 1, 1, 0, 0)
-ON DUPLICATE KEY UPDATE `permission` = VALUES(`permission`), `enabled` = VALUES(`enabled`), `pid` = VALUES(`pid`);
+ON DUPLICATE KEY UPDATE `title` = VALUES(`title`), `name` = VALUES(`name`), `sort` = VALUES(`sort`), `component` = VALUES(`component`), `path` = VALUES(`path`), `redirect` = VALUES(`redirect`), `type` = VALUES(`type`), `permission` = VALUES(`permission`), `icon` = VALUES(`icon`), `cache` = VALUES(`cache`), `hidden` = VALUES(`hidden`), `pid` = VALUES(`pid`), `enabled` = VALUES(`enabled`), `breadcrumb` = VALUES(`breadcrumb`), `hideChildrenInMenu` = VALUES(`hideChildrenInMenu`), `affix` = VALUES(`affix`);
 
 INSERT IGNORE INTO `sys_users_roles` (`user_id`, `role_id`) VALUES (1, 1);
 INSERT IGNORE INTO `sys_users_jobs` (`user_id`, `job_id`) VALUES (1, 1);

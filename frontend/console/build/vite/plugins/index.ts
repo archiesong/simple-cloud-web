@@ -1,18 +1,3 @@
-/*
- * @Author       : archiesong
- * @Date         : 2023-08-23 14:19:38
- * @LastEditors  : archiesong
- * @LastEditTime : 2024-04-17 07:21:50
- * @FilePath     : /ant-design-vue3-pro/build/vite/plugins/index.ts
- */
-/*
- * @Description:
- * @Author: archie
- * @Date: 2023-02-10 22:39:42
- * @LastEditTime: 2023-03-01 22:33:22
- * @LastEditors: archiesong
- * @Reference:
- */
 import type { PluginOption } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueJsx from '@vitejs/plugin-vue-jsx'
@@ -26,9 +11,7 @@ import { configMockPlugin } from './mock'
 import { configComponentsPlugin } from './components'
 import { configAutoImportPlugin } from './autoImport'
 import { configCompressPlugin } from './compress'
-// import { configStyleImportPlugin } from "./styleImport";
 import { configSvgIconsPlugin } from "./svgSprite";
-// import { configThemePlugin } from "./theme";
 // import { configImagesPlugin } from "./images";
 // import { configImageminPlugin } from "./imagemin";
 

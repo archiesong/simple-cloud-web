@@ -5,34 +5,304 @@ import { type Menu, MenuTypeEnum } from '@/api/system/menu/types'
 import { HighlightOutlined, SearchOutlined } from '@antdv-next/icons'
 import { ProCard } from '@antdv-next1/pro-card'
 import { FieldSelect } from '@antdv-next1/pro-field'
-// import { ProForm, ProFormGroup } from '@antdv-next1/pro-form'
-import { Button, Descriptions, Flex, Input, TypographyText, theme } from 'antdv-next'
-import { h, toRaw } from 'vue'
+import { Button, Descriptions, Empty, Flex, Input, TypographyText, message, theme } from 'antdv-next'
+import { computed, h, onMounted, ref, shallowRef, watch } from 'vue'
 
 import { getMenuTree } from '@/api/system/menu/index'
+import { assignRoleMenus, getRoleDetail } from '@/api/system/role'
 import IconView from '@/components/IconView'
 import { usePageContainer } from '@/hooks/usePageContainer'
 import { useRoleStore } from '@/store/modules/role'
+
 const { token } = theme.useToken()
 const tabActiveKey = shallowRef('1')
 const roleStore = useRoleStore()
 const menuTree = ref<Menu[]>([])
 const searchText = shallowRef('')
 const checkedKeys = shallowRef<number[]>([])
-// const expandedKeys = reactive<(string | number)[]>(['1'])
 const selectedMenuActions = ref<Map<string, string[]>>(new Map())
+const loading = shallowRef(false)
+const submitting = shallowRef(false)
 const { usePageContainerProps } = usePageContainer()
-
 const { setPageContainerProps } = usePageContainerProps()
 
-onMounted(() => {
-  getMenuTree({ includeButton: true }).then((res) => {
-    menuTree.value = res.trees
-    // console.log(filterTree(res.trees), 'treedata')
-  })
+const cloneMenuActions = (actions: Map<string, string[]>) =>
+  new Map(Array.from(actions.entries()).map(([key, value]) => [key, [...value]]))
+
+const normalizeCheckedKeys = (keys: Array<number | string> | { checked: Array<number | string> }) => {
+  const values = Array.isArray(keys) ? keys : keys.checked
+  return values.map((key) => Number(key)).filter((key) => Number.isFinite(key))
+}
+
+const filterActions = (treeData: Menu[]) => {
+  const result = new Map<string, Menu[]>()
+
+  function traverse(nodes: Menu[]) {
+    nodes.forEach((node) => {
+      if (node.type !== MenuTypeEnum.BUTTON) {
+        result.set(
+          node.id.toString(),
+          (node.children || []).filter((child) => child.type === MenuTypeEnum.BUTTON),
+        )
+      }
+      if (node.children?.length) {
+        traverse(node.children)
+      }
+    })
+  }
+
+  traverse(treeData)
+  return result
+}
+
+const actions = computed(() => filterActions(menuTree.value))
+
+const findMenuById = (nodes: Menu[], id: number): Menu | null => {
+  for (const node of nodes) {
+    if (node.id === id) {
+      return node
+    }
+    if (node.children?.length) {
+      const found = findMenuById(node.children, id)
+      if (found) {
+        return found
+      }
+    }
+  }
+  return null
+}
+
+const filterTree = (nodes: Menu[]): Menu[] => {
+  return nodes
+    .map((node) => {
+      if (node.type === MenuTypeEnum.BUTTON) {
+        return null
+      }
+
+      const match = node.title?.includes(searchText.value)
+      const children: Menu[] = node.children?.length ? filterTree(node.children) : []
+
+      if (!searchText.value || match || children.length) {
+        return {
+          ...node,
+          icon:
+            node.icon && typeof node.icon === 'string'
+              ? h(IconView, { icon: node.icon })
+              : node.icon,
+          children,
+        }
+      }
+
+      return null
+    })
+    .filter(Boolean) as Menu[]
+}
+
+const filteredMenuTree = computed(() => filterTree(menuTree.value))
+
+const expandedKeys = computed(() => {
+  const keys: number[] = []
+
+  function traverse(nodes: Menu[]) {
+    nodes.forEach((node) => {
+      keys.push(node.id)
+
+      if (node.children?.length) {
+        traverse(node.children)
+      }
+    })
+  }
+
+  traverse(filteredMenuTree.value)
+
+  return keys
 })
-//
-setPageContainerProps({
+
+const columns = [
+  {
+    title: '菜单名称',
+    dataIndex: 'name',
+    key: 'name',
+  },
+  {
+    title: '操作权限',
+    dataIndex: 'action',
+    key: 'action',
+  },
+]
+
+const dataSource = computed(() => {
+  const result: { id: number; name: string; actions: Menu[] }[] = []
+
+  checkedKeys.value.forEach((id) => {
+    const menu = findMenuById(menuTree.value, id)
+
+    if (menu?.type === MenuTypeEnum.MENU) {
+      result.push({
+        id: menu.id,
+        name: menu.title,
+        actions: actions.value.get(menu.id.toString()) || [],
+      })
+    }
+  })
+
+  return result
+})
+
+const applyRoleMenus = (menus: Menu[] = []) => {
+  const nextCheckedKeys: number[] = []
+  const nextActions = new Map<string, string[]>()
+
+  menus.forEach((menu) => {
+    if (menu.type === MenuTypeEnum.BUTTON) {
+      const key = menu.pid.toString()
+      nextActions.set(key, [...(nextActions.get(key) || []), menu.id.toString()])
+      return
+    }
+    nextCheckedKeys.push(menu.id)
+  })
+
+  checkedKeys.value = Array.from(new Set(nextCheckedKeys))
+  selectedMenuActions.value = nextActions
+}
+
+watch(
+  () => roleStore.role?.menus,
+  (menus) => {
+    applyRoleMenus(menus || [])
+  },
+  { immediate: true },
+)
+
+onMounted(async () => {
+  loading.value = true
+  try {
+    const res = await getMenuTree({ includeButton: true })
+    menuTree.value = res.trees
+  } catch (error) {
+    message.error('加载菜单权限失败')
+  } finally {
+    loading.value = false
+  }
+})
+
+const handleCheckedKeysChange = (keys: Array<number | string> | { checked: Array<number | string> }) => {
+  const nextCheckedKeys = normalizeCheckedKeys(keys).filter((id) => {
+    const menu = findMenuById(menuTree.value, id)
+    return menu && menu.type !== MenuTypeEnum.BUTTON
+  })
+  const selectedKeys = new Set(nextCheckedKeys.map((id) => id.toString()))
+  const nextActions = new Map<string, string[]>()
+
+  selectedMenuActions.value.forEach((actionIds, key) => {
+    if (selectedKeys.has(key)) {
+      nextActions.set(key, actionIds)
+    }
+  })
+
+  checkedKeys.value = nextCheckedKeys
+  selectedMenuActions.value = nextActions
+}
+
+const toggleAction = (menuId: number, actionId: number) => {
+  const key = menuId.toString()
+  const current = selectedMenuActions.value.get(key) || []
+  const nextActions = cloneMenuActions(selectedMenuActions.value)
+
+  if (current.includes(actionId.toString())) {
+    nextActions.set(
+      key,
+      current.filter((id) => id !== actionId.toString()),
+    )
+  } else {
+    nextActions.set(key, [...current, actionId.toString()])
+  }
+  selectedMenuActions.value = nextActions
+}
+
+const isActionChecked = (menuId: number, actionId: number) => {
+  const key = menuId.toString()
+  const current = selectedMenuActions.value.get(key) || []
+  return current.includes(actionId.toString())
+}
+
+const toggleAllActions = (menuId: number, menuActions: Menu[]) => {
+  const key = menuId.toString()
+  const current = selectedMenuActions.value.get(key) || []
+  const allActionIds = menuActions.map((a) => a.id.toString())
+  const nextActions = cloneMenuActions(selectedMenuActions.value)
+
+  if (current.length === allActionIds.length) {
+    nextActions.set(key, [])
+  } else {
+    nextActions.set(key, allActionIds)
+  }
+  selectedMenuActions.value = nextActions
+}
+
+const isAllActionsChecked = (menuId: number, menuActions: Menu[]) => {
+  const key = menuId.toString()
+  const current = selectedMenuActions.value.get(key) || []
+  const allActionIds = menuActions.map((a) => a.id.toString())
+  return current.length === allActionIds.length && allActionIds.every((id) => current.includes(id))
+}
+
+const isIndeterminate = (menuId: number, menuActions: Menu[]) => {
+  const key = menuId.toString()
+  const current = selectedMenuActions.value.get(key) || []
+  const allActionIds = menuActions.map((a) => a.id.toString())
+  return current.length > 0 && current.length < allActionIds.length
+}
+
+const handleReset = () => {
+  applyRoleMenus(roleStore.role?.menus || [])
+}
+
+const handleSubmit = async () => {
+  if (submitting.value) {
+    return
+  }
+  const roleId = roleStore.role?.id
+  if (!roleId) {
+    message.error('角色信息不存在，无法提交权限配置')
+    return
+  }
+
+  submitting.value = true
+  try {
+    const menuIds = new Set(checkedKeys.value.map((id) => id.toString()))
+    selectedMenuActions.value.forEach((actionIds, menuId) => {
+      if (menuIds.has(menuId)) {
+        actionIds.forEach((id) => menuIds.add(id))
+      }
+    })
+
+    await assignRoleMenus({
+      id: roleId,
+      menuIds: Array.from(menuIds),
+    })
+    const role = await getRoleDetail({ id: roleId })
+    roleStore.setCurrentRole(role)
+    applyRoleMenus(role.menus)
+    message.success('角色权限已更新')
+  } catch (error) {
+    message.error('保存角色权限失败')
+  } finally {
+    submitting.value = false
+  }
+}
+
+const renderSearchInput = () =>
+  h(Input, {
+    placeholder: '搜索菜单名称',
+    value: searchText.value,
+    'onUpdate:value': (value: string) => {
+      searchText.value = value
+    },
+    suffix: h(SearchOutlined, { class: '!color-[--ant-color-icon]' }),
+  })
+
+setPageContainerProps?.({
   content: h(Flex, { vertical: true, gap: 'small' }, () => [
     h(
       TypographyText,
@@ -41,7 +311,7 @@ setPageContainerProps({
           root: '!color-[--ant-color-text-tertiary]',
         },
       },
-      () => '配置角色菜单权限、数据权限',
+      () => '配置角色菜单权限',
     ),
     h(Descriptions, {
       column: 3,
@@ -124,189 +394,15 @@ setPageContainerProps({
       key: '1',
       label: '菜单权限',
     },
-    {
-      key: '2',
-      icon: h(IconView, { icon: 'antd:DatabaseOutlined' }),
-      label: '数据权限',
-    },
   ],
-  onTabChange: (activeKey) => {
+  onTabChange: (activeKey: string) => {
     tabActiveKey.value = activeKey
   },
   footer: [
-    h(Button, { key: 2 }, () => '重置'),
-    h(Button, { key: 2, type: 'primary' }, () => '提交'),
+    h(Button, { key: 'reset', onClick: handleReset }, () => '重置'),
+    h(Button, { key: 'submit', type: 'primary', onClick: handleSubmit }, () => '提交'),
   ],
 })
-const filterActions = (treeData: Menu[]) => {
-  const result = new Map<string, any[]>()
-  function traverse(nodes: Menu[]) {
-    nodes.forEach((node) => {
-      if (node?.type === 1) {
-        result.set(node.id.toString(), node.children || [])
-      }
-      if (node?.children && node.children.length) {
-        traverse(node.children)
-      }
-    })
-    // for (const node of nodes) {
-    //   // 如果当前节点是按钮，添加到结果
-    //   if (node.type === 2) {
-    //     result.push(node);
-    //   }
-
-    //   // 如果有子节点，递归遍历
-    //   if (node.children && node.children.length > 0) {
-    //     traverse(node.children);
-    //   }
-    // }
-  }
-  traverse(treeData)
-  return result
-}
-
-const actions = computed(() => filterActions(menuTree.value))
-
-// 根据菜单ID查找菜单信息
-const findMenuById = (nodes: Menu[], id: number): Menu | null => {
-  for (const node of nodes) {
-    if (node.id === id) {
-      return node
-    }
-    if (node.children?.length) {
-      const found = findMenuById(node.children, id)
-      if (found) {
-        return found
-      }
-    }
-  }
-  return null
-}
-
-const filterTree = (nodes: Menu[]) => {
-  return nodes
-    .map((node) => {
-      const match = node?.title?.includes(searchText.value)
-      if (node.icon && node.type !== 2 && typeof node.icon === 'string') {
-        node.icon = h(IconView, { icon: node.icon as string })
-      }
-      // expandedKeys.value.push(node.id)
-      if (node?.children) {
-        const children = filterTree(node.children) as Menu[]
-        if (children.length || match) {
-          return { ...node, children }
-        }
-        return null as unknown as Menu
-      }
-      if ((!searchText.value || match) && node.type !== 2) return node
-
-      return null as unknown as Menu
-    })
-    .filter(Boolean) as Menu[]
-}
-
-const expandedKeys = computed(() => {
-  const keys: number[] = []
-
-  function traverse(nodes: Menu[]) {
-    nodes.forEach((node) => {
-      keys.push(node.id)
-
-      if (node.children?.length) {
-        traverse(node.children)
-      }
-    })
-  }
-
-  traverse(filterTree(toRaw(menuTree.value)))
-
-  return keys
-})
-
-const columns = [
-  {
-    title: '菜单名称',
-    dataIndex: 'name',
-    key: 'name',
-  },
-  {
-    title: '操作权限',
-    dataIndex: 'action',
-    key: 'action',
-  },
-]
-
-const dataSource = computed(() => {
-  const result: { id: number; name: string; actions: Menu[] }[] = []
-
-  checkedKeys.value.forEach((id) => {
-    const menuId = id.toString()
-    const menuActions = actions.value.get(menuId)
-
-    const menu = findMenuById(menuTree.value, id as number)
-
-    if (menu && menu.type !== MenuTypeEnum.BUTTON) {
-      result.push({
-        id: menu.id,
-        name: menu.title,
-        actions: menuActions || [],
-      })
-    }
-  })
-
-  return result
-})
-
-// 切换权限按钮选中状态
-const toggleAction = (menuId: number, actionId: number) => {
-  const key = menuId.toString()
-  const current = selectedMenuActions.value.get(key) || []
-
-  if (current.includes(actionId.toString())) {
-    selectedMenuActions.value.set(
-      key,
-      current.filter((id) => id !== actionId.toString()),
-    )
-  } else {
-    selectedMenuActions.value.set(key, [...current, actionId.toString()])
-  }
-}
-
-// 检查权限按钮是否选中
-const isActionChecked = (menuId: number, actionId: number) => {
-  const key = menuId.toString()
-  const current = selectedMenuActions.value.get(key) || []
-  return current.includes(actionId.toString())
-}
-
-// 全选/取消全选某个菜单的所有权限
-const toggleAllActions = (menuId: number, menuActions: Menu[]) => {
-  const key = menuId.toString()
-  const current = selectedMenuActions.value.get(key) || []
-  const allActionIds = menuActions.map((a) => a.id.toString())
-
-  if (current.length === allActionIds.length) {
-    selectedMenuActions.value.set(key, [])
-  } else {
-    selectedMenuActions.value.set(key, allActionIds)
-  }
-}
-
-// 检查是否全选
-const isAllActionsChecked = (menuId: number, menuActions: Menu[]) => {
-  const key = menuId.toString()
-  const current = selectedMenuActions.value.get(key) || []
-  const allActionIds = menuActions.map((a) => a.id.toString())
-  return current.length === allActionIds.length && allActionIds.every((id) => current.includes(id))
-}
-
-// 检查是否部分选中
-const isIndeterminate = (menuId: number, menuActions: Menu[]) => {
-  const key = menuId.toString()
-  const current = selectedMenuActions.value.get(key) || []
-  const allActionIds = menuActions.map((a) => a.id.toString())
-  return current.length > 0 && current.length < allActionIds.length
-}
 </script>
 
 <template>
@@ -322,12 +418,7 @@ const isIndeterminate = (menuId: number, menuActions: Menu[]) => {
         <ProCard
           variant="borderless"
           col-flex="280px"
-          :title="
-            h(Input, {
-              placeholder: '搜索菜单名称',
-              suffix: h(SearchOutlined, { class: '!color-[--ant-color-icon]' }),
-            })
-          "
+          :title="renderSearchInput()"
           header-bordered
           :classes="{
             root: 'b-0 !rounded-tr-0 !rounded-br-0 b-r b-solid b-color-[--ant-color-border-secondary] h-full',
@@ -336,16 +427,14 @@ const isIndeterminate = (menuId: number, menuActions: Menu[]) => {
         >
           <a-flex vertical gap="medium">
             <a-directory-tree
+              v-if="filteredMenuTree.length"
               checkable
               :expanded-keys="expandedKeys"
-              v-model:checked-keys="checkedKeys"
-              @check="
-                (check, info) => {
-                  console.log(check, info, 'check')
-                }
-              "
+              :checked-keys="checkedKeys"
+              @update:checked-keys="handleCheckedKeysChange"
+              @check="handleCheckedKeysChange"
               block-node
-              :treeData="filterTree(menuTree)"
+              :treeData="filteredMenuTree"
               :styles="{
                 root: {
                   '--ant-tree-directory-node-selected-bg': token.controlItemBgActive,
@@ -364,6 +453,7 @@ const isIndeterminate = (menuId: number, menuActions: Menu[]) => {
                 }
               "
             />
+            <Empty v-else :description="loading ? '加载中' : '暂无菜单权限'" />
           </a-flex>
         </ProCard>
         <ProCard
@@ -377,7 +467,7 @@ const isIndeterminate = (menuId: number, menuActions: Menu[]) => {
             <a-table :columns="columns" rowKey="id" :data-source="dataSource" :pagination="false">
               <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'action'">
-                  <a-checkbox-group v-if="record.actions.length">
+                  <a-flex v-if="record.actions.length" wrap gap="small">
                     <a-checkbox
                       :indeterminate="isIndeterminate(record.id, record.actions)"
                       :checked="isAllActionsChecked(record.id, record.actions)"
@@ -393,7 +483,7 @@ const isIndeterminate = (menuId: number, menuActions: Menu[]) => {
                     >
                       {{ action.title }}
                     </a-checkbox>
-                  </a-checkbox-group>
+                  </a-flex>
                   <TypographyText v-else type="secondary">暂无操作权限</TypographyText>
                 </template>
               </template>
@@ -402,7 +492,6 @@ const isIndeterminate = (menuId: number, menuActions: Menu[]) => {
         </ProCard>
       </ProCard>
     </div>
-    <div v-show="tabActiveKey === '2'">2</div>
   </div>
 </template>
 

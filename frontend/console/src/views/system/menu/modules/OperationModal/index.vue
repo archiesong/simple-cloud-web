@@ -172,7 +172,7 @@ const handleRequest = async (_params: Record<string, unknown>) => {
             <IconPicker
               id="operation-form_icon"
               class="pro-field pro-field-md"
-              placeholder="例如：UserOutlined"
+              placeholder="例如：ri:dashboard-line / antd:UserOutlined / svg:icon-logo"
             />
           </ProFormItem>
           <ProFormText

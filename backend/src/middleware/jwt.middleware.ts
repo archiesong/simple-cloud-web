@@ -15,6 +15,8 @@ import { JWT_HEADER, TOKEN_START_WITH } from '../common/constant/token';
 export class JwtMiddleware implements IMiddleware<Context, NextFunction> {
   @Config('jwtWhiteList')
   private whiteList: RegExp[];
+  @Config('koa.globalPrefix')
+  private globalPrefix?: string;
   @Inject()
   jwtService: JwtService;
 
@@ -52,6 +54,15 @@ export class JwtMiddleware implements IMiddleware<Context, NextFunction> {
 
   // 配置忽略鉴权的路由地址
   public match(ctx: Context): boolean {
-    return !this.whiteList.some(item => item.test(ctx.path));
+    const paths = [ctx.path];
+    if (this.globalPrefix) {
+      const prefix = this.globalPrefix.startsWith('/')
+        ? this.globalPrefix
+        : `/${this.globalPrefix}`;
+      if (!ctx.path.startsWith(`${prefix}/`)) {
+        paths.push(`${prefix}${ctx.path}`);
+      }
+    }
+    return !this.whiteList.some(item => paths.some(path => item.test(path)));
   }
 }

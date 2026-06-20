@@ -1,4 +1,4 @@
-import { RoleQueryDto } from "../dto/role.dto";
+import { RoleAssignMenusDto, RoleQueryDto } from "../dto/role.dto";
 import { RoleListVo, RoleDetailVo } from "../vo/role.vo";
 
 
@@ -19,4 +19,10 @@ export interface RoleService {
      * @returns
      */
     findById(id: string): Promise<RoleDetailVo>;
+
+    /**
+     * 分配角色菜单权限
+     * @param dto
+     */
+    assignMenus(dto: RoleAssignMenusDto): Promise<void>;
 }

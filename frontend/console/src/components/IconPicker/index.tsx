@@ -86,7 +86,7 @@ const IconPicker = defineComponent<
     default?: () => VueNode
   }>
 >(
-  (props = { onlineLimit: 120, pageSize: 48, placeholder: '' }, { attrs }) => {
+  (props, { attrs }) => {
     const category = ref<Category>('all')
     const open = shallowRef(false)
     const keyword = shallowRef('')
@@ -98,10 +98,14 @@ const IconPicker = defineComponent<
     const searchRef = ref<{ focus?: () => void } | null>(null)
     const onlineIcons = ref<string[]>([])
     const onlineLoading = ref(false)
+    const onlineError = ref(false)
+    const onlineSearched = ref(false)
     const onlineCache = new Map<string, string[]>()
     const onlineAbortController = ref<AbortController | null>(null)
 
     const boundValue = computed(() => props.value ?? props.modelValue ?? '')
+    const pageSize = computed(() => props.pageSize ?? 48)
+    const onlineLimit = computed(() => props.onlineLimit ?? 120)
 
     const localSvgModules = import.meta.glob('../../assets/icons/**/*.svg')
     let onlineTimer: ReturnType<typeof setTimeout> | null = null
@@ -121,13 +125,17 @@ const IconPicker = defineComponent<
         }
       })
     const loadOfflineIconSets = async () => {
-      await loadIconifySet('ri')
-      await loadIconifySet('mdi')
-      await loadIconifySet('ion')
-      await loadAntdIcons()
+      await Promise.all([
+        loadIconifySet('ri'),
+        loadIconifySet('mdi'),
+        loadIconifySet('ion'),
+        loadAntdIcons(),
+      ])
     }
 
-    const placeholder = computed(() => props.placeholder || '请选择图标')
+    const placeholder = computed(
+      () => props.placeholder || '例如：ri:dashboard-line / antd:UserOutlined / svg:icon-logo',
+    )
 
     const loadAntdIcons = async () => {
       if (antdIconsLoadPromise) {
@@ -179,18 +187,23 @@ const IconPicker = defineComponent<
         onlineAbortController.value = null
       }
       onlineLoading.value = false
+      onlineError.value = false
+      onlineSearched.value = false
       onlineIcons.value = []
     }
     const fetchOnlineIcons = async (query: string) => {
       const normalized = query.trim().toLowerCase()
       if (!normalized) {
         onlineIcons.value = []
+        onlineSearched.value = false
         return
       }
 
       if (onlineCache.has(normalized)) {
         onlineIcons.value = onlineCache.get(normalized) || []
         onlineLoading.value = false
+        onlineError.value = false
+        onlineSearched.value = true
         return
       }
 
@@ -201,9 +214,10 @@ const IconPicker = defineComponent<
       const controller = new AbortController()
       onlineAbortController.value = controller
       onlineLoading.value = true
+      onlineError.value = false
 
       try {
-        const url = `https://api.iconify.design/search?query=${encodeURIComponent(normalized)}&limit=${props.onlineLimit}`
+        const url = `https://api.iconify.design/search?query=${encodeURIComponent(normalized)}&limit=${onlineLimit.value}`
         const response = await fetch(url, { signal: controller.signal })
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`)
@@ -219,11 +233,15 @@ const IconPicker = defineComponent<
           return
         }
         onlineIcons.value = icons
+        onlineError.value = false
+        onlineSearched.value = true
       } catch {
         if (controller.signal.aborted) {
           return
         }
         onlineIcons.value = []
+        onlineError.value = true
+        onlineSearched.value = true
       } finally {
         if (onlineAbortController.value === controller) {
           onlineAbortController.value = null
@@ -244,6 +262,9 @@ const IconPicker = defineComponent<
         return
       }
 
+      onlineLoading.value = true
+      onlineError.value = false
+      onlineSearched.value = false
       const query = keyword.value.trim()
       onlineTimer = setTimeout(() => {
         fetchOnlineIcons(query)
@@ -291,11 +312,29 @@ const IconPicker = defineComponent<
 
     const filteredTotal = computed(() => filtered.value.length)
     const pageItems = computed(() => {
-      const start = (page.value - 1) * (props.pageSize || 0)
-      return filtered.value.slice(start, start + (props.pageSize || 0))
+      const start = (page.value - 1) * pageSize.value
+      return filtered.value.slice(start, start + pageSize.value)
     })
 
     const allCount = computed(() => allOfflineIcons.value.length)
+    const onlineStatusText = computed(() => {
+      if (!shouldSearchOnline.value) {
+        return ''
+      }
+      if (onlineLoading.value) {
+        return '在线搜索中'
+      }
+      if (onlineError.value) {
+        return '在线搜索失败'
+      }
+      if (!onlineSearched.value) {
+        return ''
+      }
+      if (onlineIcons.value.length) {
+        return `在线结果 ${onlineIcons.value.length}，合并后 ${filteredTotal.value}`
+      }
+      return '未找到在线图标'
+    })
 
     const renderCategoryLabel = (key: string, count: number) => {
       const config = iconConfig[key]
@@ -343,7 +382,7 @@ const IconPicker = defineComponent<
       if (_open) {
         category.value = detectCategoryByIcon(boundValue.value.trim())
         page.value = 1
-        loadOfflineIconSets()
+        void loadOfflineIconSets()
         focusSearch()
       } else {
         // 当 Popover 隐藏时，清除搜索相关状态
@@ -354,7 +393,7 @@ const IconPicker = defineComponent<
     }
     const handleApply = (name: string) => {
       updateValue(name)
-      open.value = false
+      handleOpenChange(false)
     }
     watch([keyword, category], () => {
       page.value = 1
@@ -403,6 +442,11 @@ const IconPicker = defineComponent<
                 label: 'text-sm',
               }}
             />
+            {onlineStatusText.value ? (
+              <div class="text-3 leading-5 color-[--ant-color-text-secondary]">
+                {onlineStatusText.value}
+              </div>
+            ) : null}
             <div
               class={{
                 ['flex justify-center items-center']: !pageItems.value.length,
@@ -447,7 +491,7 @@ const IconPicker = defineComponent<
                 <Pagination
                   current={page.value}
                   onChange={handlePageChange}
-                  pageSize={props.pageSize}
+                  pageSize={pageSize.value}
                   total={filteredTotal.value}
                   showLessItems
                   showSizeChanger={false}
@@ -465,17 +509,16 @@ const IconPicker = defineComponent<
           classes={{
             root: attrs.class as string,
           }}
-          {...{ id: attrs.id }}
+          {...(props.id ? { id: props.id } : {})}
           placeholder={placeholder.value}
           allowClear
           suffix={
             <span
               class="flex items-center justify-center cursor-pointer"
-              onMousedown={() => {
-                open.value = !open.value
-                if (open.value) {
-                  focusSearch()
-                }
+              onMousedown={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                handleOpenChange(!open.value)
               }}
             >
               <IconView icon={boundValue.value || 'ion:apps-outline'} size={18} />

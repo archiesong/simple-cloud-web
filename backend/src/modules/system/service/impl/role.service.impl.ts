@@ -4,12 +4,13 @@ import { ROLE_SERVICE_IDENTIFIER, RoleService } from '../role.service';
 import { Role } from '../../entity/role.entity';
 import { Context } from '@midwayjs/koa';
 import { InjectEntityModel } from '@midwayjs/typeorm';
-import { Repository } from 'typeorm';
-import { RoleQueryDto } from '../../dto/role.dto';
+import { In, Repository } from 'typeorm';
+import { RoleAssignMenusDto, RoleQueryDto } from '../../dto/role.dto';
 import { RoleListVo, RoleDetailVo } from '../../vo/role.vo';
 import { MenuVo } from '../../vo/menu.vo';
 import { BusinessException } from '../../../../exception/business.exception';
 import { MenuUtils } from '../../util/menu.util';
+import { Menu } from '../../entity/menu.entity';
 
 @Provide(ROLE_SERVICE_IDENTIFIER)
 export class RoleServiceImpl extends BaseService<Role> implements RoleService {
@@ -17,6 +18,8 @@ export class RoleServiceImpl extends BaseService<Role> implements RoleService {
   ctx: Context;
   @InjectEntityModel(Role)
   model: Repository<Role>;
+  @InjectEntityModel(Menu)
+  menuModel: Repository<Menu>;
   /**
    * 查询角色列表
    * @param query
@@ -55,5 +58,39 @@ export class RoleServiceImpl extends BaseService<Role> implements RoleService {
     }
 
     return Promise.resolve(new RoleDetailVo(role, menuVos));
+  }
+
+  async assignMenus(dto: RoleAssignMenusDto): Promise<void> {
+    const role = await this.model.findOne({
+      where: { id: Number(dto.id) },
+      relations: ['menus'],
+    });
+
+    if (!role) {
+      throw new BusinessException('角色不存在');
+    }
+
+    const menuIds = Array.from(new Set(dto.menuIds.map(id => Number(id))));
+    if (menuIds.some(id => !Number.isInteger(id) || id <= 0)) {
+      throw new BusinessException('菜单不存在或已禁用');
+    }
+
+    if (menuIds.length === 0) {
+      role.menus = [];
+      await this.model.save(role);
+      return Promise.resolve();
+    }
+
+    const menus = await this.menuModel.find({
+      where: { id: In(menuIds), enabled: true },
+    });
+
+    if (menus.length !== menuIds.length) {
+      throw new BusinessException('菜单不存在或已禁用');
+    }
+
+    role.menus = menus;
+    await this.model.save(role);
+    return Promise.resolve();
   }
 }

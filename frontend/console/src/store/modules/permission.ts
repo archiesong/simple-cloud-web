@@ -6,6 +6,8 @@ import { defaultRoute } from '@/router/constant'
 import { generatorDynamicRouter } from '@/router/generator-routers'
 import { constantRoutes } from '@/router/index'
 
+let previousRootDynamicChildren: AppRouteRecordRaw[] = []
+
 export const usePermissionStore = defineStore('permission', () => {
   const routes = shallowRef([] as AppRouteRecordRaw[])
   const addRoutes = shallowRef([] as AppRouteRecordRaw[])
@@ -13,12 +15,16 @@ export const usePermissionStore = defineStore('permission', () => {
     try {
       const accessedRoutes = await generatorDynamicRouter()
       const rootRoute = constantRoutes.find((route) => route.path === '/')
+      const staticRootChildren =
+        rootRoute?.children?.filter((route) => !previousRootDynamicChildren.includes(route)) || []
       // 判断是否有 dashboard 权限 没有则添加默认路由
       if (!accessedRoutes.filter((route) => route.path === 'dashboard').length) {
         accessedRoutes.unshift(defaultRoute)
       }
-      rootRoute!.children = accessedRoutes.concat(rootRoute?.children || [])
-      console.log(rootRoute, 'rootRoute')
+      if (rootRoute) {
+        rootRoute.children = [...accessedRoutes, ...staticRootChildren]
+      }
+      previousRootDynamicChildren = accessedRoutes
       routes.value = constantRoutes
       addRoutes.value = accessedRoutes
       return Promise.resolve(accessedRoutes)
